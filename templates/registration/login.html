@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Iniciar sesión{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-md-6">
+        <h2 class="mb-4 text-center">Iniciar sesión</h2>
+        <form method="post" class="card card-body bg-dark bg-opacity-75 border-0">
+            {% csrf_token %}
+            {{ form.non_field_errors }}
+            <div class="mb-3">
+                <label for="id_username" class="form-label">Usuario</label>
+                <input type="text" name="username" autofocus required class="form-control" id="id_username">
+            </div>
+            <div class="mb-3">
+                <label for="id_password" class="form-label">Contraseña</label>
+                <input type="password" name="password" required class="form-control" id="id_password">
+            </div>
+            <div class="d-grid mb-2">
+                <button type="submit" class="btn btn-primary">Entrar</button>
+            </div>
+            <div class="text-center">
+                <a href="{% url 'register' %}" class="link-info">¿No tienes cuenta? Regístrate</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %} 

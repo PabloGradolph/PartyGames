@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Partida creada{% endblock %}
+{% block content %}
+<div class="text-center">
+    <h2 class="mb-4">¡Partida creada!</h2>
+    <p class="lead">Comparte este código con tus amigos para que se unan:</p>
+    <div class="display-4 fw-bold mb-3" id="codigo-partida">{{ codigo }}</div>
+    <button class="btn btn-outline-info mb-3" onclick="navigator.clipboard.writeText('{{ codigo }}')">Copiar código</button>
+    <div>
+        <a href="{% url 'blanco:partida' codigo=codigo %}" class="btn btn-success">Entrar en la partida</a>
+    </div>
+</div>
+{% endblock %} 
