@@ -102,45 +102,54 @@ def asignar_roles_y_palabras(partida, palabra_buena, palabra_infiltrado):
 def calcular_puntos_ronda(partida):
     """Calcula y asigna puntos según el resultado de la ronda"""
     jugadores_activos = [p for p in partida.players.all() if not p.eliminado]
-    jugadores_eliminados = [p for p in partida.players.all() if p.eliminado]
     
     # Contar roles de los jugadores activos
     buenos_activos = [p for p in jugadores_activos if p.es_bueno]
     infiltrados_activos = [p for p in jugadores_activos if p.es_infiltrado]
     impostores_activos = [p for p in jugadores_activos if p.es_impostor]
     
-    # Contar roles de los eliminados
-    buenos_eliminados = [p for p in jugadores_eliminados if p.es_bueno]
-    infiltrados_eliminados = [p for p in jugadores_eliminados if p.es_infiltrado]
-    impostores_eliminados = [p for p in jugadores_eliminados if p.es_impostor]
-    
-    # Verificar si hay impostores eliminados que ya intentaron adivinar y fallaron
-    impostores_que_fallaron = [p for p in impostores_eliminados if p.ya_intento_adivinar]
-    
     # Lógica de puntos según el resultado
     if len(jugadores_activos) == 2:  # Llegaron a 1 vs 1
-        # Si hay impostores que fallaron en adivinar, el infiltrado gana 2 puntos
-        if len(impostores_que_fallaron) > 0 and len(infiltrados_activos) > 0:
-            # Infiltrado gana 2 puntos cuando el impostor falla
-            for player in infiltrados_activos:
-                player.puntos += 2
-                player.save()
-            return f"Puntos asignados. El impostor falló en adivinar, el infiltrado gana 2 puntos."
-        elif len(impostores_activos) > 0:  # Hay impostor en el final
-            # Impostor gana 3 puntos
+        # Asignar puntos según la combinación en el 1 vs 1
+        if len(impostores_activos) == 2:
+            # Dos impostores en el 1 vs 1, cada uno gana 3 puntos
             for player in impostores_activos:
                 player.puntos += 3
                 player.save()
-        elif len(infiltrados_activos) > 0:  # Hay infiltrado en el final
-            # Infiltrado gana 2 puntos
+            return f"Puntos asignados. Dos impostores, cada uno gana 3 puntos."
+        elif len(impostores_activos) == 1 and len(infiltrados_activos) == 1:
+            # Un impostor y un infiltrado en el 1 vs 1
+            for player in impostores_activos:
+                player.puntos += 3
+                player.save()
             for player in infiltrados_activos:
                 player.puntos += 2
                 player.save()
-        elif len(buenos_activos) > 0:  # Hay buenos en el final
-            # Buenos ganan 1 punto cada uno
+            return f"Puntos asignados. Un impostor y un infiltrado: impostor 3 puntos, infiltrado 2 puntos."
+        elif len(impostores_activos) == 1 and len(buenos_activos) == 1:
+            # Un impostor y un bueno en el 1 vs 1
+            for player in impostores_activos:
+                player.puntos += 3
+                player.save()
+            return f"Puntos asignados. Un impostor y un bueno: impostor 3 puntos."
+        elif len(infiltrados_activos) == 2:
+            # Dos infiltrados en el 1 vs 1, cada uno gana 2 puntos
+            for player in infiltrados_activos:
+                player.puntos += 2
+                player.save()
+            return f"Puntos asignados. Dos infiltrados, cada uno gana 2 puntos."
+        elif len(infiltrados_activos) == 1 and len(buenos_activos) == 1:
+            # Un infiltrado y un bueno, el infiltrado gana 2 puntos, el bueno 0
+            for player in infiltrados_activos:
+                player.puntos += 2
+                player.save()
+            return f"Puntos asignados. Un infiltrado y un bueno, el infiltrado gana 2 puntos."
+        elif len(buenos_activos) == 2:
+            # Dos buenos en el 1 vs 1, cada uno gana 1 punto
             for player in buenos_activos:
                 player.puntos += 1
                 player.save()
+            return f"Puntos asignados. Dos buenos, cada uno gana 1 punto."
     else:  # No llegaron a 1 vs 1
         # Los buenos ganan si eliminaron a todos los infiltrados e impostores
         if len(infiltrados_activos) == 0 and len(impostores_activos) == 0:
@@ -148,6 +157,7 @@ def calcular_puntos_ronda(partida):
             for player in buenos_activos:
                 player.puntos += 1
                 player.save()
+            return f"Puntos asignados. Solo quedan buenos, cada uno gana 1 punto."
     
     return f"Puntos asignados. Buenos activos: {len(buenos_activos)}, Infiltrados activos: {len(infiltrados_activos)}, Impostores activos: {len(impostores_activos)}"
 
@@ -383,19 +393,40 @@ def partida(request, codigo):
                             partida.save()
                             mensaje += ' ¡Los buenos han ganado! Todos los malos han sido eliminados. Los buenos activos ganan 1 punto cada uno. La ronda ha terminado.'
                         elif len(jugadores_activos) == 2:
-                            # Llegamos a 1 vs 1, asignar puntos según quién esté en el final
-                            if len(impostores_activos) > 0:
-                                # Impostor en el 1 vs 1, gana 3 puntos
+                            # Llegamos a 1 vs 1, asignar puntos según la combinación
+                            if len(impostores_activos) == 2:
+                                # Dos impostores en el 1 vs 1, cada uno gana 3 puntos
                                 for player in impostores_activos:
                                     player.puntos += 3
                                     player.save()
-                                mensaje += ' ¡Llegamos a 1 vs 1! El impostor gana 3 puntos.'
-                            elif len(infiltrados_activos) > 0:
-                                # Infiltrado en el 1 vs 1, gana 2 puntos
+                                mensaje += ' ¡Llegamos a 1 vs 1! Dos impostores, cada uno gana 3 puntos.'
+                            elif len(impostores_activos) == 1 and len(infiltrados_activos) == 1:
+                                # Un impostor y un infiltrado en el 1 vs 1
+                                for player in impostores_activos:
+                                    player.puntos += 3
+                                    player.save()
                                 for player in infiltrados_activos:
                                     player.puntos += 2
                                     player.save()
-                                mensaje += ' ¡Llegamos a 1 vs 1! El infiltrado gana 2 puntos.'
+                                mensaje += ' ¡Llegamos a 1 vs 1! Un impostor y un infiltrado: impostor 3 puntos, infiltrado 2 puntos.'
+                            elif len(impostores_activos) == 1 and len(buenos_activos) == 1:
+                                # Un impostor y un bueno en el 1 vs 1
+                                for player in impostores_activos:
+                                    player.puntos += 3
+                                    player.save()
+                                mensaje += ' ¡Llegamos a 1 vs 1! Un impostor y un bueno: impostor 3 puntos.'
+                            elif len(infiltrados_activos) == 2:
+                                # Dos infiltrados en el 1 vs 1, cada uno gana 2 puntos
+                                for player in infiltrados_activos:
+                                    player.puntos += 2
+                                    player.save()
+                                mensaje += ' ¡Llegamos a 1 vs 1! Dos infiltrados, cada uno gana 2 puntos.'
+                            elif len(infiltrados_activos) == 1 and len(buenos_activos) == 1:
+                                # Un infiltrado y un bueno, el infiltrado gana 2 puntos, el bueno 0
+                                for player in infiltrados_activos:
+                                    player.puntos += 2
+                                    player.save()
+                                mensaje += ' ¡Llegamos a 1 vs 1! Un infiltrado y un bueno, el infiltrado gana 2 puntos.'
                             elif len(buenos_activos) == 2:
                                 # Dos buenos en el 1 vs 1, cada uno gana 1 punto
                                 for player in buenos_activos:
