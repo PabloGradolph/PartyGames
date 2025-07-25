@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'channels',
     'blanco',
     'psicologo',
     'puebloduerme',
@@ -71,6 +72,21 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'partygames.wsgi.application'
+ASGI_APPLICATION = 'partygames.asgi.application'
+
+# Channels configuration
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+    },
+}
+
+# Configurar Django para usar ASGI por defecto
+ASGI_APPLICATION = 'partygames.asgi.application'
+
+# Configuración para desarrollo sin Daphne
+import os
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'partygames.settings')
 
 
 # Database

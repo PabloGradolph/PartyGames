@@ -13,6 +13,9 @@ import random
 from django.contrib import messages
 import unicodedata
 import re
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
+import json
 
 # Create your views here.
 
@@ -27,6 +30,20 @@ def normalizar_texto(texto):
     # Quitar espacios extra
     texto = texto.strip()
     return texto
+
+def enviar_actualizacion_websocket(codigo_partida, tipo_mensaje, datos=None):
+    """Envía una actualización a todos los clientes conectados a la partida"""
+    channel_layer = get_channel_layer()
+    async_to_sync(channel_layer.group_send)(
+        f'partida_{codigo_partida}',
+        {
+            'type': 'partida_message',
+            'message': {
+                'type': tipo_mensaje,
+                'data': datos
+            }
+        }
+    )
 
 @login_required
 def index(request):
@@ -204,6 +221,8 @@ def partida(request, codigo):
             if user_id and str(request.user.id) != user_id:
                 GamePlayer.objects.filter(session=partida, user_id=user_id).delete()
                 mensaje = 'Jugador expulsado de la sala.'
+                # Enviar actualización WebSocket
+                enviar_actualizacion_websocket(partida.codigo, 'partida_updated')
         
         # Eliminar jugador de la ronda (durante el juego)
         elif 'eliminar_ronda' in request.POST and es_host and partida.estado == 'en_juego' and not partida.ronda_terminada:
@@ -247,6 +266,8 @@ def partida(request, codigo):
                         partida.ronda_terminada = True
                         partida.save()
                         mensaje += f' ¡Los buenos han ganado! Todos los malos han sido eliminados. Los buenos activos ganan 1 punto cada uno.'
+                        # Enviar actualización WebSocket
+                        enviar_actualizacion_websocket(partida.codigo, 'partida_updated')
                 elif len(jugadores_activos) == 2:
                     # Verificar si hay impostores eliminados que pueden adivinar
                     impostores_eliminados = [p for p in partida.players.all() if p.eliminado and p.es_impostor and not p.ya_intento_adivinar]
@@ -303,6 +324,8 @@ def partida(request, codigo):
             partida.ronda_actual = 1
             partida.save()
             mensaje = '¡La partida ha comenzado!'
+            # Enviar actualización WebSocket
+            enviar_actualizacion_websocket(partida.codigo, 'partida_updated')
         
         # Nueva ronda de palabras
         elif 'nueva_ronda' in request.POST and es_host and partida.ronda_terminada:
@@ -334,6 +357,8 @@ def partida(request, codigo):
             partida.ronda_actual += 1
             partida.save()
             mensaje = f'¡Nueva ronda comenzada! (Ronda {partida.ronda_actual})'
+            # Enviar actualización WebSocket
+            enviar_actualizacion_websocket(partida.codigo, 'partida_updated')
         
         # Adivinar palabra (impostor eliminado)
         elif 'adivinar_palabra' in request.POST:

@@ -28,4 +28,11 @@ body {
     background-color: #145c4a;
     color: #fff;
     border-color: #7fffd4;
+}
+
+/* Estilo para badges de puntos más grandes */
+.badge.bg-warning.points {
+    font-size: 1.1rem;
+    padding: 0.5rem 0.75rem;
+    font-weight: bold;
 } 

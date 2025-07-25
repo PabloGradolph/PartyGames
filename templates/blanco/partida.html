@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Partida {{ partida.codigo }}{% endblock %}
 {% block content %}
 <div class="text-center">
@@ -11,7 +12,7 @@
     
     <p class="mb-4">
         Estado: 
-        <span class="badge bg-info">{{ partida.estado }}</span>
+        <span id="estado-partida" class="badge bg-info">{{ partida.estado }}</span>
         {% if partida.estado == 'en_juego' %}
             <span class="badge bg-primary ms-2">Ronda {{ partida.ronda_actual }}</span>
         {% endif %}
@@ -65,7 +66,7 @@
             <div class="col-12">
                 <h4>Puntuación</h4>
                 <div class="table-responsive">
-                    <table class="table table-dark table-striped">
+                    <table id="puntuacion-table" class="table table-dark table-striped">
                         <thead>
                             <tr>
                                 <th>Jugador</th>
@@ -82,7 +83,7 @@
                                             <span class="badge bg-success ms-2">Host</span>
                                         {% endif %}
                                     </td>
-                                    <td><span class="badge bg-warning">{{ jugador.puntos }}</span></td>
+                                    <td><span class="badge bg-warning points">{{ jugador.puntos }}</span></td>
                                     <td>{{ jugador.ronda_actual }}</td>
                                 </tr>
                             {% endfor %}
@@ -96,8 +97,8 @@
     <div class="row">
         <!-- Jugadores activos -->
         <div class="col-md-6">
-            <h4>Jugadores activos ({{ jugadores_activos|length }})</h4>
-            <ul class="list-group list-group-flush mb-3">
+            <h4>Jugadores activos (<span id="jugadores-activos-count">{{ jugadores_activos|length }}</span>)</h4>
+            <ul id="jugadores-activos-list" class="list-group list-group-flush mb-3">
                 {% for jugador in jugadores_activos %}
                     <li class="list-group-item bg-dark text-light d-flex justify-content-between align-items-center">
                         <span>
@@ -118,7 +119,7 @@
                                 <form method="post" style="display:inline;">
                                     {% csrf_token %}
                                     <input type="hidden" name="eliminar_ronda" value="{{ jugador.user.id }}">
-                                    <button type="submit" class="btn btn-sm btn-warning">Eliminar de ronda</button>
+                                    <button type="submit" class="btn btn-sm btn-warning boton-juego" onclick="partidaWS.eliminarJugador({{ jugador.id }})">Eliminar de ronda</button>
                                 </form>
                             {% endif %}
                         {% endif %}
@@ -130,8 +131,8 @@
         <!-- Jugadores eliminados -->
         {% if jugadores_eliminados %}
         <div class="col-md-6">
-            <h4>Eliminados de la ronda ({{ jugadores_eliminados|length }})</h4>
-            <ul class="list-group list-group-flush mb-3">
+            <h4>Eliminados de la ronda (<span id="jugadores-eliminados-count">{{ jugadores_eliminados|length }}</span>)</h4>
+            <ul id="jugadores-eliminados-list" class="list-group list-group-flush mb-3">
                 {% for jugador in jugadores_eliminados %}
                     <li class="list-group-item bg-secondary text-light d-flex justify-content-between align-items-center">
                         <span>
@@ -170,23 +171,14 @@
     <!-- Controles del host -->
     {% if es_host %}
         <div class="mt-4">
-            <form method="post" class="mb-2">
-                {% csrf_token %}
-                <button type="submit" name="terminar" value="1" class="btn btn-outline-danger">Terminar partida</button>
-            </form>
+            <button type="button" onclick="partidaWS.terminarPartida()" class="btn btn-outline-danger mb-2">Terminar partida</button>
             
             {% if partida.estado == 'en_juego' %}
                 {% if partida.ronda_terminada %}
-                    <form method="post" class="mt-2">
-                        {% csrf_token %}
-                        <button type="submit" name="nueva_ronda" value="1" class="btn btn-success">Nueva ronda de palabras</button>
-                    </form>
+                    <button type="button" onclick="partidaWS.nuevaRonda()" class="btn btn-success mt-2">Nueva ronda de palabras</button>
                 {% endif %}
             {% elif puede_empezar %}
-                <form method="post" class="mt-2">
-                    {% csrf_token %}
-                    <button type="submit" name="empezar_partida" value="1" class="btn btn-success">Empezar partida</button>
-                </form>
+                <button type="button" onclick="partidaWS.iniciarPartida()" class="btn btn-success mt-2">Empezar partida</button>
             {% else %}
                 <div class="alert alert-warning mt-2">Se necesitan al menos 4 jugadores para empezar la partida.</div>
             {% endif %}
@@ -238,4 +230,21 @@
         </div>
     {% endif %}
 </div>
+
+<!-- WebSocket Script -->
+<script src="{% static 'js/websocket.js' %}"></script>
+<script>
+    // Inicializar WebSocket cuando se carga la página
+    document.addEventListener('DOMContentLoaded', function() {
+        const codigoPartida = '{{ partida.codigo }}';
+        window.partidaWS = new PartidaWebSocket(codigoPartida);
+        
+        // Limpiar WebSocket cuando se cierre la página
+        window.addEventListener('beforeunload', function() {
+            if (window.partidaWS) {
+                window.partidaWS.disconnect();
+            }
+        });
+    });
+</script>
 {% endblock %} 
