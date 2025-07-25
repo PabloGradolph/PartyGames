@@ -1,2 +1,8 @@
 venv
-db.sqlite3
+# Ignorar la base de datos SQLite
+*.sqlite3
+*.db
+
+# Ignorar carpetas de caché de Python
+__pycache__/
+*.pyc
