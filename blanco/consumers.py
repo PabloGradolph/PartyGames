@@ -73,32 +73,21 @@ class PartidaConsumer(AsyncWebsocketConsumer):
         message_type = text_data_json.get('type')
         
         if message_type == 'refresh_request':
-            # Enviar datos actualizados de la partida
             await self.send_partida_data()
         elif message_type == 'eliminar_jugador':
-            # Manejar eliminación de jugador
             await self.handle_eliminar_jugador(text_data_json)
         elif message_type == 'nueva_ronda':
-            # Manejar nueva ronda
             await self.handle_nueva_ronda(text_data_json)
         elif message_type == 'iniciar_partida':
-            # Manejar inicio de partida
             await self.handle_iniciar_partida(text_data_json)
         elif message_type == 'terminar_partida':
-            # Manejar terminación de partida
             await self.handle_terminar_partida(text_data_json)
         elif message_type == 'expulsar_jugador':
-            # Manejar expulsión de jugador
             await self.handle_expulsar_jugador(text_data_json)
         elif message_type == 'adivinar_palabra':
-            # Manejar adivinación de palabra por impostor eliminado
             await self.handle_adivinar_palabra(text_data_json)
-        elif message_type == 'refresh_request':
-            # Manejar solicitud de actualización de datos
-            await self.send_partida_data()
 
     async def partida_message(self, event):
-        # Enviar mensaje al WebSocket
         await self.send(text_data=json.dumps(event['message']))
 
     @database_sync_to_async
@@ -348,19 +337,10 @@ class PartidaConsumer(AsyncWebsocketConsumer):
             success = await self.eliminar_jugador_ronda(jugador_id)
             
             if success:
-                # Enviar notificación de eliminación a todos inmediatamente
-                await self.channel_layer.group_send(
-                    self.room_group_name,
-                    {
-                        'type': 'partida_message',
-                        'message': {
-                            'type': 'jugador_eliminado',
-                            'jugador_id': jugador_id,
-                        }
-                    }
-                )
+                # Enviar datos actualizados a todos los clientes inmediatamente
+                await self.send_partida_data()
                 
-                # Verificar si la ronda debe terminar
+                # Verificar si la ronda debe terminar (después de enviar los datos actualizados)
                 ronda_terminada = await self.verificar_fin_ronda()
                 
                 # Si la ronda terminó, enviar notificación especial
@@ -375,11 +355,7 @@ class PartidaConsumer(AsyncWebsocketConsumer):
                             }
                         }
                     )
-                
-                # Enviar datos actualizados a todos los clientes después de un breve delay
-                import asyncio
-                await asyncio.sleep(0.5)
-                await self.send_partida_data()
+
 
     @database_sync_to_async
     def iniciar_nueva_ronda(self):
@@ -693,6 +669,9 @@ class PartidaConsumer(AsyncWebsocketConsumer):
                 }
             )
             
+            # Enviar datos actualizados inmediatamente después de la adivinación
+            await self.send_partida_data()
+            
             # Si la ronda terminó, enviar notificación
             if resultado.get('ronda_terminada'):
                 await self.channel_layer.group_send(
@@ -705,9 +684,6 @@ class PartidaConsumer(AsyncWebsocketConsumer):
                         }
                     }
                 )
-            
-            # Enviar datos actualizados
-            await self.send_partida_data()
 
     @database_sync_to_async
     def procesar_adivinacion(self, palabra_adivinada):

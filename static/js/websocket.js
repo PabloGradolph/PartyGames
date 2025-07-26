@@ -4,7 +4,8 @@ class PartidaWebSocket {
         this.socket = null;
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 5;
-        this.reconnectDelay = 1000; // 1 segundo
+        this.reconnectDelay = 1000;
+        this.currentPartidaData = null;
         this.init();
     }
 
@@ -19,21 +20,21 @@ class PartidaWebSocket {
         this.socket = new WebSocket(wsUrl);
         
         this.socket.onopen = (event) => {
-            console.log('WebSocket conectado');
             this.reconnectAttempts = 0;
-            this.showConnectionStatus('Conectado', 'success');
+            this.initializePartidaData();
         };
 
         this.socket.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            this.handleMessage(data);
+            try {
+                const data = JSON.parse(event.data);
+                this.handleMessage(data);
+            } catch (error) {
+                console.error('Error al parsear mensaje WebSocket:', error);
+            }
         };
 
         this.socket.onclose = (event) => {
-            console.log('WebSocket desconectado');
-            this.showConnectionStatus('Desconectado', 'danger');
             
-            // Intentar reconectar si no fue un cierre intencional
             if (!event.wasClean && this.reconnectAttempts < this.maxReconnectAttempts) {
                 this.reconnectAttempts++;
                 setTimeout(() => {
@@ -51,78 +52,109 @@ class PartidaWebSocket {
     handleMessage(data) {
         switch (data.type) {
             case 'partida_updated':
+                // Forzar recarga si el número de eliminados aumenta
+                if (this.currentPartidaData && data.data.jugadores_eliminados > this.currentPartidaData.jugadores_eliminados) {
+                    this.showNotification('Un jugador ha sido eliminado', 'danger');
+                    setTimeout(() => window.location.reload(), 1000);
+                    return;
+                }
+                
+                // También detectar si hay cambios en la lista de jugadores
+                if (this.currentPartidaData && this.currentPartidaData.jugadores) {
+                    const jugadoresActuales = this.currentPartidaData.jugadores;
+                    const jugadoresNuevos = data.data.jugadores;
+                    
+                    const cambiosDetectados = jugadoresActuales.some((jugadorActual, index) => {
+                        const jugadorNuevo = jugadoresNuevos[index];
+                        return jugadorActual.eliminado !== jugadorNuevo.eliminado;
+                    });
+                    
+                    if (cambiosDetectados) {
+                        this.showNotification('Un jugador ha sido eliminado', 'danger');
+                        setTimeout(() => window.location.reload(), 1000);
+                        return;
+                    }
+                    
+                    // Detectar si un impostor eliminado intentó adivinar (cambios en puntos o estado)
+                    const cambiosImpostor = jugadoresActuales.some((jugadorActual, index) => {
+                        const jugadorNuevo = jugadoresNuevos[index];
+                        // Si es un impostor eliminado y sus puntos cambiaron, probablemente intentó adivinar
+                        if (jugadorActual.es_impostor && jugadorActual.eliminado && 
+                            jugadorNuevo.es_impostor && jugadorNuevo.eliminado &&
+                            jugadorActual.puntos !== jugadorNuevo.puntos) {
+                            return true;
+                        }
+                        return false;
+                    });
+                    
+                    if (cambiosImpostor) {
+                        this.showNotification('Un impostor eliminado intentó adivinar la palabra', 'info');
+                        setTimeout(() => window.location.reload(), 1000);
+                        return;
+                    }
+                }
+                
+                this.currentPartidaData = data.data;
                 this.updatePartidaUI(data.data);
                 break;
+                
             case 'user_connected':
                 this.showNotification(`${data.username} se ha unido a la partida`, 'success');
                 break;
+                
             case 'user_disconnected':
                 this.showNotification(`${data.username} se ha desconectado`, 'warning');
                 break;
+                
             case 'jugador_eliminado':
                 this.showNotification('Un jugador ha sido eliminado', 'danger');
-                // Solicitar actualización inmediata de los datos
-                setTimeout(() => {
-                    this.requestRefresh();
-                }, 200);
+                setTimeout(() => window.location.reload(), 1000);
                 break;
+                
             case 'jugador_expulsado':
                 this.showNotification('Un jugador ha sido expulsado de la partida', 'warning');
-                // Recargar la página para mostrar la información actualizada
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1000);
+                setTimeout(() => window.location.reload(), 1000);
                 break;
+                
             case 'partida_iniciada':
                 this.showNotification(data.message, 'success');
-                // Recargar la página para mostrar la nueva interfaz completa
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1000);
+                setTimeout(() => window.location.reload(), 1000);
+                setTimeout(() => window.location.reload(), 3000);
                 break;
+                
             case 'nueva_ronda_iniciada':
                 this.showNotification(data.message, 'success');
-                // Recargar la página para mostrar la nueva interfaz completa
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1000);
+                setTimeout(() => window.location.reload(), 1000);
+                setTimeout(() => window.location.reload(), 3000);
                 break;
+                
             case 'partida_terminada':
                 this.showNotification(data.message, 'warning');
-                // Redirigir al inicio después de 3 segundos
                 setTimeout(() => {
                     window.location.href = '/';
                 }, 3000);
                 break;
+                
             case 'error':
                 this.showNotification(data.message, 'danger');
                 break;
+                
             case 'ronda_terminada':
                 this.showNotification(data.message, 'warning');
-                // Recargar la página para mostrar el estado de ronda terminada
-                setTimeout(() => {
-                    window.location.reload();
-                }, 2000);
+                setTimeout(() => window.location.reload(), 2000);
                 break;
+                
             case 'adivinacion_resultado':
                 if (data.resultado.error) {
                     this.showNotification(data.resultado.error, 'danger');
                 } else {
                     this.showNotification(data.resultado.mensaje, data.resultado.correcto ? 'success' : 'warning');
-                    if (data.resultado.ronda_terminada) {
-                        // Recargar la página si la ronda terminó
-                        setTimeout(() => {
-                            window.location.reload();
-                        }, 3000);
-                    }
+                    // Recargar la página después de mostrar el resultado de la adivinación
+                    setTimeout(() => window.location.reload(), 2000);
                 }
-                break;
-            default:
                 break;
         }
     }
-
-    // Esta función está duplicada, se elimina
 
     updatePuntuacionTable(jugadores) {
         const tbody = document.querySelector('#puntuacion-table tbody');
@@ -145,7 +177,6 @@ class PartidaWebSocket {
     }
 
     updatePlayerCounters(partidaData) {
-        // Actualizar contadores en la UI
         const activosElement = document.querySelector('#jugadores-activos-count');
         const eliminadosElement = document.querySelector('#jugadores-eliminados-count');
         
@@ -158,46 +189,31 @@ class PartidaWebSocket {
     }
 
     updateGameState(partidaData) {
-        // Actualizar estado del juego
         const estadoElement = document.querySelector('#estado-partida');
         if (estadoElement) {
             estadoElement.textContent = partidaData.estado === 'en_juego' ? 'En juego' : 'Esperando';
         }
 
-        // Mostrar/ocultar tabla de puntuaciones según el estado
         const puntuacionRow = document.querySelector('.row.mb-4');
         if (puntuacionRow) {
-            if (partidaData.estado === 'en_juego') {
-                puntuacionRow.style.display = 'block';
-            } else {
-                puntuacionRow.style.display = 'none';
-            }
+            puntuacionRow.style.display = partidaData.estado === 'en_juego' ? 'block' : 'none';
         }
 
-        // Mostrar/ocultar elementos según el estado
         const botonesJuego = document.querySelectorAll('.boton-juego');
         botonesJuego.forEach(boton => {
-            if (partidaData.estado === 'en_juego') {
-                boton.style.display = 'inline-block';
-            } else {
-                boton.style.display = 'none';
-            }
+            boton.style.display = partidaData.estado === 'en_juego' ? 'inline-block' : 'none';
         });
 
-        // Actualizar botón "Empezar partida" basado en el número de jugadores
         this.updateStartButton(partidaData);
     }
 
     updateStartButton(partidaData) {
-        // Buscar el contenedor de controles del host
         const hostControls = document.querySelector('.mt-4');
         if (!hostControls) return;
 
-        // Buscar elementos existentes
         let startButton = hostControls.querySelector('#start-game-button');
         let warningDiv = hostControls.querySelector('#warning-message');
 
-        // Limpiar elementos existentes si no tienen los IDs correctos
         const oldButtons = hostControls.querySelectorAll('button[onclick*="iniciarPartida"]');
         const oldWarnings = hostControls.querySelectorAll('.alert-warning');
         
@@ -209,12 +225,10 @@ class PartidaWebSocket {
         });
 
         if (partidaData.jugadores_activos >= 4 && partidaData.estado !== 'en_juego') {
-            // Ocultar mensaje de advertencia si existe
             if (warningDiv) {
                 warningDiv.style.display = 'none';
             }
             
-            // Crear o mostrar botón de empezar partida
             if (!startButton) {
                 startButton = document.createElement('button');
                 startButton.id = 'start-game-button';
@@ -227,12 +241,10 @@ class PartidaWebSocket {
                 startButton.style.display = 'inline-block';
             }
         } else if (partidaData.estado !== 'en_juego') {
-            // Ocultar botón si existe
             if (startButton) {
                 startButton.style.display = 'none';
             }
             
-            // Crear o mostrar mensaje de advertencia
             if (!warningDiv) {
                 warningDiv = document.createElement('div');
                 warningDiv.id = 'warning-message';
@@ -243,7 +255,6 @@ class PartidaWebSocket {
                 warningDiv.style.display = 'block';
             }
         } else {
-            // Si la partida está en juego, ocultar ambos
             if (startButton) {
                 startButton.style.display = 'none';
             }
@@ -254,7 +265,6 @@ class PartidaWebSocket {
     }
 
     updatePlayerLists(jugadores) {
-        // Actualizar lista de jugadores activos
         const activosList = document.querySelector('#jugadores-activos-list');
         if (activosList) {
             activosList.innerHTML = '';
@@ -264,24 +274,20 @@ class PartidaWebSocket {
                 const li = document.createElement('li');
                 li.className = 'list-group-item bg-dark text-light d-flex justify-content-between align-items-center';
                 
-                // Determinar si mostrar botones de host
                 const hostControls = document.querySelector('.mt-4');
-                const isHost = hostControls !== null; // Si existe el contenedor de controles del host
+                const isHost = hostControls !== null;
                 
                 let buttonsHtml = '';
                 if (isHost) {
-                    // Mostrar botones si es host (incluyendo para sí mismo)
                     const partidaData = this.getCurrentPartidaData();
                     
                     if (partidaData && partidaData.estado !== 'en_juego') {
-                        // Si la partida no ha empezado, mostrar botón de expulsar
                         buttonsHtml = `
                             <button type="button" class="btn btn-sm btn-danger" onclick="partidaWS.expulsarJugador(${jugador.user_id})">
                                 Expulsar
                             </button>
                         `;
                     } else if (partidaData && partidaData.estado === 'en_juego' && !partidaData.ronda_terminada) {
-                        // Si la partida está en juego y la ronda no ha terminado, mostrar botón de eliminar
                         buttonsHtml = `
                             <button type="button" class="btn btn-sm btn-warning boton-juego" onclick="partidaWS.eliminarJugador(${jugador.id})">
                                 Eliminar de ronda
@@ -301,11 +307,27 @@ class PartidaWebSocket {
             });
         }
 
-        // Actualizar lista de jugadores eliminados
-        const eliminadosList = document.querySelector('#jugadores-eliminados-list');
+        let eliminadosList = document.querySelector('#jugadores-eliminados-list');
+        const jugadoresEliminados = jugadores.filter(j => j.eliminado);
+        
+        let eliminadosContainer = eliminadosList ? eliminadosList.closest('.col-md-6') : null;
+        if (!eliminadosContainer) {
+            const row = document.querySelector('.row');
+            if (row) {
+                eliminadosContainer = document.createElement('div');
+                eliminadosContainer.className = 'col-md-6';
+                eliminadosContainer.innerHTML = `
+                    <h4>Eliminados de la ronda (<span id="jugadores-eliminados-count">${jugadoresEliminados.length}</span>)</h4>
+                    <ul id="jugadores-eliminados-list" class="list-group list-group-flush mb-3">
+                    </ul>
+                `;
+                row.appendChild(eliminadosContainer);
+                eliminadosList = eliminadosContainer.querySelector('#jugadores-eliminados-list');
+            }
+        }
+        
         if (eliminadosList) {
             eliminadosList.innerHTML = '';
-            const jugadoresEliminados = jugadores.filter(j => j.eliminado);
             
             jugadoresEliminados.forEach(jugador => {
                 const li = document.createElement('li');
@@ -323,14 +345,13 @@ class PartidaWebSocket {
                 eliminadosList.appendChild(li);
             });
             
-            // Mostrar u ocultar el contenedor de eliminados según si hay jugadores eliminados
-            const eliminadosContainer = eliminadosList.closest('.col-md-6');
+            const countElement = document.querySelector('#jugadores-eliminados-count');
+            if (countElement) {
+                countElement.textContent = jugadoresEliminados.length;
+            }
+            
             if (eliminadosContainer) {
-                if (jugadoresEliminados.length > 0) {
-                    eliminadosContainer.style.display = 'block';
-                } else {
-                    eliminadosContainer.style.display = 'none';
-                }
+                eliminadosContainer.style.display = jugadoresEliminados.length > 0 ? 'block' : 'none';
             }
         }
     }
@@ -346,16 +367,7 @@ class PartidaWebSocket {
     }
 
     eliminarJugador(jugadorId) {
-        // Enviar mensaje al servidor
         this.sendMessage('eliminar_jugador', { jugador_id: jugadorId });
-        
-        // Mostrar notificación inmediata
-        this.showNotification('Eliminando jugador...', 'info');
-        
-        // Solicitar actualización de datos después de un breve delay
-        setTimeout(() => {
-            this.requestRefresh();
-        }, 500);
     }
 
     expulsarJugador(userId) {
@@ -378,19 +390,7 @@ class PartidaWebSocket {
         this.sendMessage('adivinar_palabra', { palabra_adivinada: palabra });
     }
 
-    requestRefresh() {
-        this.sendMessage('refresh_request');
-        
-        // Si no hay respuesta en 2 segundos, intentar de nuevo
-        setTimeout(() => {
-            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-                this.sendMessage('refresh_request');
-            }
-        }, 2000);
-    }
-
     showConnectionStatus(message, type) {
-        // Crear o actualizar indicador de estado de conexión
         let statusElement = document.getElementById('connection-status');
         if (!statusElement) {
             statusElement = document.createElement('div');
@@ -403,7 +403,6 @@ class PartidaWebSocket {
         statusElement.className = `alert alert-${type} alert-sm position-fixed top-0 end-0 m-3`;
         statusElement.textContent = message;
 
-        // Ocultar después de 3 segundos
         setTimeout(() => {
             if (statusElement.parentNode) {
                 statusElement.parentNode.removeChild(statusElement);
@@ -412,7 +411,6 @@ class PartidaWebSocket {
     }
 
     showNotification(message, type) {
-        // Crear notificación toast
         const toast = document.createElement('div');
         toast.className = `toast align-items-center text-white bg-${type} border-0`;
         toast.setAttribute('role', 'alert');
@@ -428,7 +426,6 @@ class PartidaWebSocket {
             </div>
         `;
 
-        // Agregar al contenedor de toasts
         let toastContainer = document.getElementById('toast-container');
         if (!toastContainer) {
             toastContainer = document.createElement('div');
@@ -440,11 +437,9 @@ class PartidaWebSocket {
 
         toastContainer.appendChild(toast);
 
-        // Mostrar el toast
         const bsToast = new bootstrap.Toast(toast);
         bsToast.show();
 
-        // Remover después de que se oculte
         toast.addEventListener('hidden.bs.toast', () => {
             if (toast.parentNode) {
                 toast.parentNode.removeChild(toast);
@@ -459,12 +454,10 @@ class PartidaWebSocket {
     }
 
     getCurrentPartidaData() {
-        // Usar los datos almacenados del WebSocket si están disponibles
         if (this.currentPartidaData) {
             return this.currentPartidaData;
         }
         
-        // Fallback: obtener datos actuales de la partida desde el DOM
         const estadoElement = document.querySelector('#estado-partida');
         const rondaTerminada = document.querySelector('.badge.bg-warning') !== null;
         
@@ -477,17 +470,31 @@ class PartidaWebSocket {
         return null;
     }
 
+    initializePartidaData() {
+        const activosCount = document.querySelector('#jugadores-activos-count');
+        const eliminadosCount = document.querySelector('#jugadores-eliminados-count');
+        const estadoElement = document.querySelector('#estado-partida');
+        
+        this.currentPartidaData = {
+            jugadores_activos: activosCount ? parseInt(activosCount.textContent) : 0,
+            jugadores_eliminados: eliminadosCount ? parseInt(eliminadosCount.textContent) : 0,
+            estado: estadoElement ? (estadoElement.textContent === 'En juego' ? 'en_juego' : 'esperando') : 'esperando',
+            ronda_terminada: document.querySelector('.badge.bg-warning') !== null
+        };
+        
+        if (this.currentPartidaData.estado === 'en_juego') {
+            setTimeout(() => window.location.reload(), 2000);
+        }
+    }
+
     updatePalabraSecreta(palabraSecreta) {
-        // Solo actualizar si la partida está en juego
         const estadoElement = document.querySelector('#estado-partida');
         if (estadoElement && estadoElement.textContent !== 'En juego') {
-            return; // No actualizar si la partida no ha empezado
+            return;
         }
         
-        // Buscar el elemento que muestra la palabra secreta
         const palabraElement = document.querySelector('.alert-primary .display-6');
         if (palabraElement && palabraSecreta) {
-            // Si es el mensaje del impostor, mostrarlo sin "Tu palabra secreta:"
             if (palabraSecreta.includes("¡Impostor!")) {
                 palabraElement.innerHTML = `<b>${palabraSecreta}</b>`;
             } else {
@@ -496,28 +503,12 @@ class PartidaWebSocket {
         }
     }
 
-    // Esta función se eliminó porque estaba causando recargas innecesarias
-
-    // Variable para almacenar los datos más recientes de la partida
-    currentPartidaData = null;
-
     updatePartidaUI(partidaData) {
-        // Guardar los datos actuales
         this.currentPartidaData = partidaData;
-        
-        // Actualizar tabla de puntuaciones
         this.updatePuntuacionTable(partidaData.jugadores);
-        
-        // Actualizar contadores de jugadores
         this.updatePlayerCounters(partidaData);
-        
-        // Actualizar estado de la partida
         this.updateGameState(partidaData);
-        
-        // Actualizar listas de jugadores activos y eliminados
         this.updatePlayerLists(partidaData.jugadores);
-        
-        // Actualizar palabra secreta del usuario actual
         this.updatePalabraSecreta(partidaData.palabra_secreta);
     }
 } 
