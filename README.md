@@ -111,6 +111,63 @@ python -m daphne partygames.asgi:application
 
 El servidor ASGI manejará tanto las peticiones HTTP como las conexiones WebSocket en tiempo real.
 
+## Despliegue en Railway
+
+### Prerrequisitos
+
+1. **Cuenta en Railway**: Regístrate en [railway.app](https://railway.app)
+2. **Git**: Asegúrate de que tu código esté en un repositorio Git
+3. **Base de datos PostgreSQL**: Railway proporciona PostgreSQL automáticamente
+4. **Redis**: Necesario para WebSockets en producción
+
+### Pasos para el Despliegue
+
+1. **Conectar repositorio a Railway**:
+   - Ve a [railway.app](https://railway.app)
+   - Crea un nuevo proyecto
+   - Selecciona "Deploy from GitHub repo"
+   - Conecta tu repositorio
+
+2. **Configurar variables de entorno**:
+   En Railway, ve a la pestaña "Variables" y configura:
+   ```
+   SECRET_KEY=tu-clave-secreta-muy-segura
+   DEBUG=False
+   ALLOWED_HOSTS=tu-app.railway.app
+   DATABASE_URL=postgresql://... (Railway lo configura automáticamente)
+   REDIS_URL=redis://... (Railway lo configura automáticamente)
+   ```
+
+3. **Agregar servicios**:
+   - **PostgreSQL**: Railway lo agrega automáticamente
+   - **Redis**: Agrega un servicio Redis desde el marketplace
+
+4. **Configurar el comando de inicio**:
+   Railway usará automáticamente el `Procfile` que ya tienes configurado.
+
+5. **Desplegar**:
+   - Railway detectará automáticamente que es una aplicación Python
+   - Ejecutará las migraciones automáticamente
+   - Recolectará archivos estáticos
+   - Iniciará el servidor ASGI
+
+### Verificar el Despliegue
+
+1. **Migraciones**: Verifica que las migraciones se ejecutaron correctamente
+2. **WebSockets**: Prueba que los WebSockets funcionan en producción
+3. **Archivos estáticos**: Verifica que CSS/JS se cargan correctamente
+
+### Troubleshooting
+
+- **Error de WebSockets**: Verifica que Redis esté configurado correctamente
+- **Error de base de datos**: Verifica las variables de entorno de la base de datos
+- **Archivos estáticos no cargan**: Verifica que WhiteNoise esté configurado
+
+### URLs de Producción
+
+- **Aplicación**: `https://tu-app.railway.app`
+- **Admin**: `https://tu-app.railway.app/admin`
+
 ## Contribuir
 
 1. Fork el proyecto
