@@ -1,1 +1,1 @@
-web: daphne partygames.asgi:application
+web: python manage.py collectstatic && daphne partygames.asgi:application
