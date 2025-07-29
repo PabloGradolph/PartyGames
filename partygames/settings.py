@@ -30,7 +30,7 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["localhost", "web-production-4a2d.up.railway.app", "127.0.0.1"]
+ALLOWED_HOSTS = ["localhost", "web-production-4a2d.up.railway.app", "127.0.0.1", "partygames.up.railway.app"]
 
 
 # Application definition
@@ -147,5 +147,5 @@ LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/'
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://web-production-4a2d.up.railway.app", "http://localhost:8000"
+    "https://web-production-4a2d.up.railway.app", "http://localhost:8000", "https://partygames.up.railway.app",
 ]
